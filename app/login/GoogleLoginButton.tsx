@@ -12,7 +12,10 @@ export default function GoogleLoginButton() {
         setError("");
 
         const supabase = createClient();
-
+        console.log(
+            "Google OAuth redirect:",
+            `${window.location.origin}/auth/callback`
+        );
         const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
