@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ImageIcon, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ImageIcon, Pencil, Plus, Trash2, X, UploadCloud, CheckCircle2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Media = {
@@ -19,6 +19,7 @@ export default function MediaManager({ images }: { images: Media[] }) {
     const [editingImage, setEditingImage] = useState<Media | null>(null);
 
     const [imageUrl, setImageUrl] = useState("");
+    const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [description, setDescription] = useState("");
 
     const [loading, setLoading] = useState(false);
@@ -29,6 +30,7 @@ export default function MediaManager({ images }: { images: Media[] }) {
         setShowCreateForm(false);
         setEditingImage(null);
         setImageUrl("");
+        setUploadFile(null);
         setDescription("");
         setError(null);
     }
@@ -50,16 +52,20 @@ export default function MediaManager({ images }: { images: Media[] }) {
         try {
             const editing = editingImage !== null;
 
+            const uploading = !editing && uploadFile !== null;
+            const formData = new FormData();
+            if (uploading && uploadFile) {
+                formData.append("file", uploadFile);
+                formData.append("description", description.trim());
+            }
             const response = await fetch(
-                editing
+                uploading ? "/api/media/upload" : editing
                     ? `/api/media/${editingImage.id}`
                     : "/api/media",
                 {
                     method: editing ? "PATCH" : "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
+                    ...(uploading ? {} : { headers: { "Content-Type": "application/json" } }),
+                    body: uploading ? formData : JSON.stringify({
                         image_url: imageUrl.trim(),
                         description: description.trim() || null,
                     }),
@@ -192,6 +198,28 @@ export default function MediaManager({ images }: { images: Media[] }) {
                         }}
                         className="space-y-5"
                     >
+                        {!editingImage && (
+                            <div className="space-y-4">
+                                <label htmlFor="image-file" className="group flex cursor-pointer flex-col items-center gap-3 rounded-xl border-2 border-dashed border-violet-400/60 bg-violet-500/10 px-6 py-9 text-center transition hover:border-violet-300 hover:bg-violet-500/20 focus-within:ring-2 focus-within:ring-violet-400">
+                                    {uploadFile ? <CheckCircle2 size={38} className="text-green-400" /> : <UploadCloud size={42} className="text-violet-300" />}
+                                    <span className="text-lg font-bold text-white">{uploadFile ? "Image selected" : "Upload an image from your computer"}</span>
+                                    <span className="rounded-lg bg-violet-400 px-5 py-2.5 text-sm font-bold text-black group-hover:bg-violet-300">{uploadFile ? "Choose a different image" : "Choose image file"}</span>
+                                    <span className="text-xs text-gray-300">JPEG, PNG, or WebP · Maximum 5 MB</span>
+                                    <input id="image-file" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => {
+                                        const file = event.target.files?.[0] ?? null;
+                                        if (file && (file.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type))) {
+                                            setError("Choose a JPEG, PNG, or WebP image smaller than 5 MB.");
+                                            setUploadFile(null);
+                                            return;
+                                        }
+                                        setUploadFile(file);
+                                        setError(null);
+                                    }} />
+                                </label>
+                                {uploadFile && <p role="status" className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-300">✓ {uploadFile.name} ({(uploadFile.size / 1024 / 1024).toFixed(2)} MB) ready to upload</p>}
+                                <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-wider text-gray-500"><span className="h-px flex-1 bg-white/10" />or add an image using a URL<span className="h-px flex-1 bg-white/10" /></div>
+                            </div>
+                        )}
                         <div>
                             <label
                                 htmlFor="image-url"
@@ -203,7 +231,8 @@ export default function MediaManager({ images }: { images: Media[] }) {
                             <input
                                 id="image-url"
                                 type="url"
-                                required
+                                required={!uploadFile}
+                                disabled={Boolean(uploadFile)}
                                 value={imageUrl}
                                 onChange={(event) =>
                                     setImageUrl(event.target.value)
@@ -257,7 +286,7 @@ export default function MediaManager({ images }: { images: Media[] }) {
                                 ? "Saving..."
                                 : editingImage
                                     ? "Save Changes"
-                                    : "Create Image"}
+                                    : uploadFile ? "Upload Image" : "Create Image"}
                         </button>
                     </form>
                 </div>
