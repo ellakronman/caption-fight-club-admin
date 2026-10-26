@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ImageIcon, Pencil, Plus, Trash2, X, UploadCloud, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import {
+    ImageIcon,
+    Pencil,
+    Plus,
+    Trash2,
+    X,
+    UploadCloud,
+    CheckCircle2,
+    Sparkles,
+} from "lucide-react";import { useRouter } from "next/navigation";
 
 type Media = {
     id: string;
@@ -23,6 +31,7 @@ export default function MediaManager({ images }: { images: Media[] }) {
     const [description, setDescription] = useState("");
 
     const [loading, setLoading] = useState(false);
+    const [generatingImageId, setGeneratingImageId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
@@ -96,7 +105,41 @@ export default function MediaManager({ images }: { images: Media[] }) {
             setLoading(false);
         }
     }
+    async function generateCaptions(image: Media) {
+        setGeneratingImageId(image.id);
+        setError(null);
+        setSuccess(null);
 
+        try {
+            const response = await fetch(
+                `/api/media/${image.id}/generate-captions`,
+                { method: "POST" }
+            );
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(
+                    result.error || "Unable to generate captions."
+                );
+            }
+
+            setSuccess(
+                "Four AI captions generated successfully! " +
+                "They should now appear in Caption Fight Club."
+            );
+
+            router.refresh();
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "Caption generation failed."
+            );
+        } finally {
+            setGeneratingImageId(null);
+        }
+    }
     async function deleteImage(image: Media) {
         const confirmed = window.confirm(
             "Are you sure you want to delete this image?\n\n" +
@@ -331,14 +374,23 @@ export default function MediaManager({ images }: { images: Media[] }) {
                                         ).toLocaleDateString()}
                                     </p>
                                 </div>
-
+                                <button
+                                    onClick={() => void generateCaptions(image)}
+                                    disabled={loading || generatingImageId !== null}
+                                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-violet-500 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
+                                >
+                                    <Sparkles size={16}/>
+                                    {generatingImageId === image.id
+                                        ? "Generating captions..."
+                                        : "Generate AI Captions"}
+                                </button>
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => startEditing(image)}
                                         disabled={loading}
                                         className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-50"
                                     >
-                                        <Pencil size={15} />
+                                        <Pencil size={15}/>
                                         Edit
                                     </button>
 
@@ -347,7 +399,7 @@ export default function MediaManager({ images }: { images: Media[] }) {
                                         disabled={loading}
                                         className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-500/20 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 disabled:opacity-50"
                                     >
-                                        <Trash2 size={15} />
+                                        <Trash2 size={15}/>
                                         Delete
                                     </button>
                                 </div>
